@@ -58,4 +58,8 @@ res2.metric("Техникийн алдагдал", f"{total_tech_loss:.1f}")
 res3.metric("ТР-ын алдагдал", f"{tr_loss:.1f}")
 res4.metric("Арилжааны алдагдал", f"{comm_loss:.1f}")
 
-if total_measured_loss > 0 and comm_loss > (
+# Дүгнэлт
+if total_measured_loss > 0 and comm_loss > (total_measured_loss * 0.4):
+    st.error("🚨 Арилжааны алдагдал өндөр байна!")
+else:
+    st.success("✅ Сүлжээний байдал хэвийн байна.")
