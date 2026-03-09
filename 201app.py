@@ -49,7 +49,8 @@ tr_loss = (TR_DATA["400 kVA"]["P0"] * hours) + (TR_DATA["400 kVA"]["Pk"] * (k_lo
 # --- НЭГДСЭН ҮР ДҮН ---
 st.divider()
 total_measured_loss = main_meter - users_sum
-total_tech_loss = total_line_loss + tr_loss
+# Эндээс tr_loss-ийг хасаад зөвхөн шугамын алдагдлыг авна
+total_tech_loss = total_line_loss 
 comm_loss = total_measured_loss - total_tech_loss
 
 res1, res2, res3, res4 = st.columns(4)
@@ -63,3 +64,4 @@ if total_measured_loss > 0 and comm_loss > (total_measured_loss * 0.4):
     st.error("🚨 Арилжааны алдагдал өндөр байна!")
 else:
     st.success("✅ Сүлжээний байдал хэвийн байна.")
+
