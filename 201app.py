@@ -1,101 +1,69 @@
 import streamlit as st
 import pandas as pd
+import math
 
 # 1. Хуудасны тохиргоо
-st.set_page_config(page_title="КТП-201 Нарийвчилсан Тооцоо", layout="wide")
+st.set_page_config(page_title="КТП-201 Салбарласан Шугамын Тооцоо", layout="wide")
 
-# 2. Дамжуулагчийн өгөгдлийн сан
+# 2. Дамжуулагчийн өгөгдөл
 CONDUCTOR_DATA = {
-    "СИП-2 3х16": {"R20": 1.91, "alpha": 0.00403, "I_max": 100},
-    "СИП-2 3х25": {"R20": 1.20, "alpha": 0.00403, "I_max": 130},
-    "СИП-2 3х35": {"R20": 0.868, "alpha": 0.00403, "I_max": 160},
-    "СИП-2 3х50": {"R20": 0.641, "alpha": 0.00403, "I_max": 195},
-    "СИП-2 3х70": {"R20": 0.443, "alpha": 0.00403, "I_max": 240},
-    "АС-25/4.2": {"R20": 1.15, "alpha": 0.00403, "I_max": 125},
-    "АС-50/8.0": {"R20": 0.595, "alpha": 0.00403, "I_max": 210}
+    "СИП-2 3х16": {"R20": 1.91, "alpha": 0.00403},
+    "СИП-2 3х25": {"R20": 1.20, "alpha": 0.00403},
+    "СИП-2 3х35": {"R20": 0.868, "alpha": 0.00403},
+    "СИП-2 3х50": {"R20": 0.641, "alpha": 0.00403},
+    "СИП-2 3х70": {"R20": 0.443, "alpha": 0.00403}
 }
 
-st.title("⚡ КТП-201: Нарийвчилсан Тооцоо V5.1")
+st.title("⚡ КТП-201: Магистраль + 1-Фаз Салбарлалт V6.1")
 
-# --- SIDEBAR: Удирдлага ---
+# --- SIDEBAR: Ерөнхий өгөгдөл ---
 with st.sidebar:
     st.header("📂 Ерөнхий өгөгдөл")
-    main_meter = st.number_input("Толгой тоолуур (кВт.цаг):", value=259148.0)
+    total_p_kwh = st.number_input("Толгой тоолуур (кВт.цаг):", value=259148.0)
     users_sum = st.number_input("Хэрэглэгчдийн нийлбэр (кВт.цаг):", value=178040.0)
     hours = st.number_input("Хугацаа (цаг):", value=720.0)
     st.divider()
-    temp = st.slider("Температура (°C):", -40, 50, 20)
+    m_voltage = st.number_input("Магистраль хүчдэл (В):", value=400)
     cos_phi = st.slider("cosφ:", 0.7, 1.0, 0.9)
-    # Хүчдэлийг Вольт (В) нэгжээр оруулна
-    voltage_v = st.number_input("Шугамын хүчдэл (В):", value=400, min_value=350, max_value=450, step=1)
+    temp = st.slider("Температура (°C):", -40, 50, 20)
 
-# --- ТӨВ ХЭСЭГ: Гаргалгааны тооцоо ---
-st.subheader("📌 Гаргалгаа бүрийн ачаалал ба хэрэглэгчид")
-col_main, col_info = st.columns([2, 1])
+# --- ГАРГАЛГААНЫ ТООЦОО ---
+st.subheader("📌 Шугамын бүтэц ба Салбарлалт")
+col_main, col_res = st.columns([2, 1])
 
-feeder_names = ["1-р гаргалгаа", "2-р гаргалгаа", "3-р гаргалгаа", "4-р гаргалгаа"]
-temp_feeders = []
-total_weight = 0
+total_tech_loss = 0
+feeder_results = []
 
 with col_main:
-    for i in range(4):
-        with st.expander(feeder_names[i], expanded=True):
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                wire = st.selectbox(f"Марк {i+1}:", list(CONDUCTOR_DATA.keys()), key=f"w_{i}", index=1)
-                length_m = st.number_input(f"Урт (м) {i+1}:", value=500.0, key=f"l_{i}")
-            with c2:
-                u_220 = st.number_input(f"220В тоолуур {i+1}:", value=50, key=f"u220_{i}")
-            with c3:
-                u_380 = st.number_input(f"380В тоолуур {i+1}:", value=2, key=f"u380_{i}")
+    # 1-р гаргалгааны жишээ
+    with st.expander("1-р Гаргалгаа: Магистраль ба Салбар шугамын тохиргоо", expanded=True):
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            st.markdown("### 🛣️ Магистраль (3-фаз)")
+            m_wire = st.selectbox("Марк (М):", list(CONDUCTOR_DATA.keys()), key="mw1")
+            m_len = st.number_input("Урт (м) (М):", value=300.0, key="ml1")
+            m_u380 = st.number_input("380В тоолуур:", value=2, key="mu380_1")
+            m_u220 = st.number_input("Магистраль дээрх 220В тоолуур:", value=30, key="mu220_1")
             
-            # Ачааллын жинг тооцох (380В хэрэглэгчийг 3 дахин их жинтэй гэж үзэв)
-            weight = u_220 + (u_380 * 3)
-            total_weight += weight
-            temp_feeders.append({"wire": wire, "len": length_m, "weight": weight, "u220": u_220, "u380": u_380})
+        with c2:
+            st.markdown("### 🌿 Салбар (1-фаз)")
+            b_voltage = st.number_input("Салбарын хүчдэл (В):", value=220, key="bv1")
+            b_wire = st.selectbox("Марк (С):", list(CONDUCTOR_DATA.keys()), key="bw1")
+            b_len = st.number_input("Урт (м) (С):", value=150.0, key="bl1")
+            b_u220 = st.number_input("Салбар дээрх 220В тоолуур:", value=15, key="bu220_1")
 
-# --- ТӨГСГӨЛ: Үр дүн ба Баланс ---
-st.divider()
-total_tech_loss = 0
-summary_list = []
-
-for i, f in enumerate(temp_feeders):
-    # Ачаалал хуваарилах хувь
-    ratio = f["weight"] / total_weight if total_weight > 0 else 0
+    # Тооцооллын логик
+    # 1. Ачааллын хуваарилалт (Жин)
+    b_weight = b_u220
+    m_weight = m_u220 + (m_u380 * 3)
+    total_feeder_weight = b_weight + m_weight # Энэ гаргалгааны нийт жин
     
-    # Дамжуулагчийн эсэргүүцэл температурын хамаарлаар
-    data = CONDUCTOR_DATA[f["wire"]]
-    r_t = data["R20"] * (1 + data["alpha"] * (temp - 20))
+    # Нийт чадлын энэ гаргалгаанд ноогдох хэсэг (Хялбарчилсан харьцаа)
+    p_feeder = (total_p_kwh / hours) * 0.25 # Жишээ нь 4 гаргалгааны 1 нь гэж үзвэл
+    p_branch = p_feeder * (b_weight / total_feeder_weight) if total_feeder_weight > 0 else 0
     
-    # Дундаж ачаалал (кВт)
-    avg_p = (main_meter / hours) * ratio
-    
-    # Хүчдэлийг кВ-д шилжүүлж гүйдэл тооцох
-    u_kv = voltage_v / 1000
-    i_current = avg_p / (u_kv * 1.732 * cos_phi) if (u_kv > 0 and ratio > 0) else 0
-    
-    # Техникийн алдагдал (кВт.цаг)
-    loss = (3 * (i_current**2) * (r_t * (f["len"] / 1000)) * hours) / 1000
-    total_tech_loss += loss
-    
-    summary_list.append({
-        "Гар": i+1, 
-        "220В": f["u220"], 
-        "380В": f["u380"], 
-        "Гүйдэл (А)": round(i_current, 1), 
-        "Тех.Алдагдал": round(loss, 1)
-    })
-
-res_col1, res_col2 = st.columns([2, 1])
-with res_col1:
-    st.table(pd.DataFrame(summary_list))
-
-with res_col2:
-    total_measured_loss = main_meter - users_sum
-    comm_loss = total_measured_loss - total_tech_loss
-    
-    st.metric("Хэмжсэн нийт алдагдал", f"{total_measured_loss:,.1f}")
-    st.metric("Техникийн алдагдал", f"{total_tech_loss:,.1f}")
-    st.metric("Арилжааны алдагдал", f"{comm_loss:,.1f}")
-
-st.success(f"✅ Хүчдэлийг {voltage_v} В-оор тооцож дууслаа.")
+    # 2. Салбарын алдагдал (1-фаз)
+    r_b = CONDUCTOR_DATA[b_wire]["R20"] * (1 + CONDUCTOR_DATA[b_wire]["alpha"] * (temp - 20))
+    i_branch = (p_branch * 1000) / (b_voltage * cos_phi) if b_weight > 0 else 0
+    # 1-фаз тул Фаз+Нойль = 2 дахин их эсэрг
