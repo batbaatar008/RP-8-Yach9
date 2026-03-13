@@ -3,7 +3,7 @@ import pandas as pd
 import math
 
 # 1. Хуудасны тохиргоо
-st.set_page_config(page_title="КТП-201 Салбарласан Шугамын Тооцоо", layout="wide")
+st.set_page_config(page_title="КТП-201 Олон Мөчиртэй Тооцоо", layout="wide")
 
 # 2. Дамжуулагчийн өгөгдөл
 CONDUCTOR_DATA = {
@@ -14,56 +14,76 @@ CONDUCTOR_DATA = {
     "СИП-2 3х70": {"R20": 0.443, "alpha": 0.00403}
 }
 
-st.title("⚡ КТП-201: Магистраль + 1-Фаз Салбарлалт V6.1")
+st.title("⚡ КТП-201: Олон мөчиртэй Нарийвчилсан Тооцоо V7.0")
 
 # --- SIDEBAR: Ерөнхий өгөгдөл ---
 with st.sidebar:
-    st.header("📂 Ерөнхий өгөгдөл")
+    st.header("📂 Ерөнхий тохиргоо")
     total_p_kwh = st.number_input("Толгой тоолуур (кВт.цаг):", value=259148.0)
-    users_sum = st.number_input("Хэрэглэгчдийн нийлбэр (кВт.цаг):", value=178040.0)
     hours = st.number_input("Хугацаа (цаг):", value=720.0)
-    st.divider()
     m_voltage = st.number_input("Магистраль хүчдэл (В):", value=400)
     cos_phi = st.slider("cosφ:", 0.7, 1.0, 0.9)
     temp = st.slider("Температура (°C):", -40, 50, 20)
 
-# --- ГАРГАЛГААНЫ ТООЦОО ---
-st.subheader("📌 Шугамын бүтэц ба Салбарлалт")
-col_main, col_res = st.columns([2, 1])
+# --- ТӨВ ХЭСЭГ: Хүснэгтээр өгөгдөл оруулах ---
+st.subheader("📝 Шугамын бүтэц (Тулгуур ба Салбарлалт)")
+st.info("💡 Тулгуур бүрийн хоорондох зай, дамжуулагч болон салбар шугамын хүчдэлийг доорх хүснэгтэд нэмж оруулна уу.")
 
+# Анхны өгөгдөл бүхий хүснэгт
+initial_data = pd.DataFrame([
+    {"Тулгуур": "1-2", "Төрөл": "Магистраль (3ф)", "Марк": "СИП-2 3х50", "Урт (м)": 40.0, "Хүчдэл (В)": 400, "220В Тоолуур": 5, "380В Тоолуур": 1},
+    {"Тулгуур": "2-3 (Салбар)", "Төрөл": "Салбар (1ф)", "Марк": "СИП-2 3х16", "Урт (м)": 35.0, "Хүчдэл (В)": 220, "220В Тоолуур": 10, "380В Тоолуур": 0},
+])
+
+# Editable Table
+edited_df = st.data_editor(
+    initial_data, 
+    num_rows="dynamic", 
+    use_container_width=True,
+    column_config={
+        "Төрөл": st.column_config.SelectboxColumn(options=["Магистраль (3ф)", "Салбар (1ф)"]),
+        "Марк": st.column_config.SelectboxColumn(options=list(CONDUCTOR_DATA.keys()))
+    }
+)
+
+# --- ТООЦООЛОЛ ---
+st.divider()
 total_tech_loss = 0
-feeder_results = []
+calculation_results = []
 
-with col_main:
-    # 1-р гаргалгааны жишээ
-    with st.expander("1-р Гаргалгаа: Магистраль ба Салбар шугамын тохиргоо", expanded=True):
-        c1, c2 = st.columns(2)
-        
-        with c1:
-            st.markdown("### 🛣️ Магистраль (3-фаз)")
-            m_wire = st.selectbox("Марк (М):", list(CONDUCTOR_DATA.keys()), key="mw1")
-            m_len = st.number_input("Урт (м) (М):", value=300.0, key="ml1")
-            m_u380 = st.number_input("380В тоолуур:", value=2, key="mu380_1")
-            m_u220 = st.number_input("Магистраль дээрх 220В тоолуур:", value=30, key="mu220_1")
-            
-        with c2:
-            st.markdown("### 🌿 Салбар (1-фаз)")
-            b_voltage = st.number_input("Салбарын хүчдэл (В):", value=220, key="bv1")
-            b_wire = st.selectbox("Марк (С):", list(CONDUCTOR_DATA.keys()), key="bw1")
-            b_len = st.number_input("Урт (м) (С):", value=150.0, key="bl1")
-            b_u220 = st.number_input("Салбар дээрх 220В тоолуур:", value=15, key="bu220_1")
+# Нийт тоолуурын тоогоор ачааллыг жинлэж хуваах (Хялбарчилсан)
+total_u220 = edited_df["220В Тоолуур"].sum()
+total_u380 = edited_df["380В Тоолуур"].sum()
+total_weight = total_u220 + (total_u380 * 3)
 
-    # Тооцооллын логик
-    # 1. Ачааллын хуваарилалт (Жин)
-    b_weight = b_u220
-    m_weight = m_u220 + (m_u380 * 3)
-    total_feeder_weight = b_weight + m_weight # Энэ гаргалгааны нийт жин
+for index, row in edited_df.iterrows():
+    # Тухайн хэсгийн ачаалал
+    weight = row["220В Тоолуур"] + (row["380В Тоолуур"] * 3)
+    ratio = weight / total_weight if total_weight > 0 else 0
+    p_segment = (total_p_kwh / hours) * ratio
     
-    # Нийт чадлын энэ гаргалгаанд ноогдох хэсэг (Хялбарчилсан харьцаа)
-    p_feeder = (total_p_kwh / hours) * 0.25 # Жишээ нь 4 гаргалгааны 1 нь гэж үзвэл
-    p_branch = p_feeder * (b_weight / total_feeder_weight) if total_feeder_weight > 0 else 0
+    # Эсэргүүцэл
+    wire_info = CONDUCTOR_DATA[row["Марк"]]
+    r_t = wire_info["R20"] * (1 + wire_info["alpha"] * (temp - 20))
     
-    # 2. Салбарын алдагдал (1-фаз)
-    r_b = CONDUCTOR_DATA[b_wire]["R20"] * (1 + CONDUCTOR_DATA[b_wire]["alpha"] * (temp - 20))
-    i_branch = (p_branch * 1000) / (b_voltage * cos_phi) if b_weight > 0 else 0
-    # 1-фаз тул Фаз+Нойль = 2 дахин их эсэрг
+    # Алдагдал тооцох (3-фаз vs 1-фаз)
+    if row["Төрөл"] == "Магистраль (3ф)":
+        i_curr = (p_segment * 1000) / (math.sqrt(3) * row["Хүчдэл (В)"] * cos_phi) if p_segment > 0 else 0
+        loss = (3 * (i_curr**2) * (r_t * (row["Урт (м)"] / 1000)) * hours) / 1000
+    else:
+        i_curr = (p_segment * 1000) / (row["Хүчдэл (В)"] * cos_phi) if p_segment > 0 else 0
+        loss = (2 * (i_curr**2) * (r_t * (row["Урт (м)"] / 1000)) * hours) / 1000
+    
+    total_tech_loss += loss
+    calculation_results.append(round(loss, 2))
+
+# Үр дүнг харуулах
+st.subheader("📊 Тооцооны нэгдсэн дүн")
+c1, c2 = st.columns(2)
+with c1:
+    st.metric("Нийт техникийн алдагдал", f"{total_tech_loss:,.1f} кВт.цаг")
+with c2:
+    measured_loss = total_p_kwh - (total_p_kwh * 0.7) # Жишээ баланс
+    st.metric("Арилжааны алдагдал (Багцаалсан)", f"{max(0, measured_loss - total_tech_loss):,.1f} кВт.цаг")
+
+st.success("✅ Хүснэгтээр оруулсан бүх мөчир, тулгуурын алдагдлыг тооцож дууслаа.")
